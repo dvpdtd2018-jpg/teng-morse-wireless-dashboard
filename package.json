@@ -1,0 +1,14 @@
+{
+  "name": "teng-morse-wireless-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Wireless ESP32 CS-TENG voltage dashboard and Morse decoder.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node dashboard/server.mjs",
+    "check": "node --check dashboard/server.mjs && node --check dashboard/public/app.js"
+  }
+}

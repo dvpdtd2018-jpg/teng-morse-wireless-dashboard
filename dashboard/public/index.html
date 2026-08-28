@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101941">
+  <title>CEI Morse Signal Lab</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main>
+    <header class="masthead">
+      <img class="brand-logo" src="/brand-logo.webp" alt="VinUniversity Center for Environmental Intelligence">
+      <div id="connection" class="connection"><i></i><span>WAITING FOR ESP32</span></div>
+    </header>
+
+    <section class="intro">
+      <div>
+        <p class="eyebrow">CS-TENG / LOCAL SIGNAL LAB</p>
+        <h1>Read the pulse.<br><strong>Predict the message.</strong></h1>
+      </div>
+      <p>Raw ESP32 voltage travels over your local Wi-Fi network. The chart and Morse decoder run in this browser; nothing is hosted on the ESP32.</p>
+    </section>
+
+    <section class="stats" aria-label="Live signal summary">
+      <article class="reading"><span>LIVE CHANNEL VOLTAGE</span><strong id="liveVoltage">0.0000 <small>V</small></strong><p><b id="millivolts">0</b> mV selected · raw <b id="rawMillivolts">0</b> mV</p></article>
+      <article class="stat"><span>WINDOW PEAK</span><strong id="peakVoltage">0.000 <small>V</small></strong></article>
+      <article class="stat"><span>WINDOW LOW</span><strong id="lowVoltage">0.000 <small>V</small></strong></article>
+      <article class="stat"><span>TRIGGER STATE</span><strong id="triggerState" class="armed">OFF</strong></article>
+    </section>
+
+    <section class="workspace">
+      <article class="chart-card">
+        <div class="card-head"><div><h2>Live voltage trace</h2><p id="plotSummary">Last 10 seconds / 50 samples per second</p></div><span id="sampleBadge">RAW</span></div>
+        <div class="plot-wrap"><canvas id="plot" aria-label="Live raw voltage chart"></canvas><span id="plotEmpty">Waiting for readings...</span></div>
+        <footer class="plot-foot"><span id="channelLegend" class="legend-line">RAW VOLTAGE</span><span id="thresholdLegend" class="legend-threshold" hidden>THRESHOLD</span><span id="rangeLabel">0.000 - 0.300 V</span></footer>
+      </article>
+
+      <aside class="controls-card">
+        <div class="controls-title"><h2>Signal controls</h2><span>LOCAL</span></div>
+        <section><h3>Y-AXIS RANGE</h3><div class="field-grid"><label>MINIMUM (V)<input id="yMin" type="number" min="0" max="3.299" step="0.001" value="0.000"></label><label>MAXIMUM (V)<input id="yMax" type="number" min="0.001" max="3.300" step="0.001" value="0.300"></label></div></section>
+        <section><div class="range-label"><h3>X-AXIS WINDOW</h3><output id="xOutput">10 SEC</output></div><input id="xSeconds" type="range" min="1" max="30" step="1" value="10"></section>
+        <section><div class="range-label"><h3>SIGNAL CHANNEL</h3><output id="channelOutput">RAW</output></div><select id="filterChannel" aria-label="Signal processing channel"><option value="raw">Raw · no processing</option><option value="ema">Smooth · responsive EMA</option><option value="median">Spike guard · median of 5</option><option value="average">Noise average · mean of 5</option></select><p id="channelHelp" class="channel-help">The direct ESP32 reading, unchanged.</p></section>
+        <section><div class="range-label"><h3>ESP32 STREAM</h3><output id="streamStatus">NOT CONNECTED</output></div><label class="wide-field">DATA ADDRESS<input id="streamUrl" type="url" spellcheck="false" placeholder="http://teng-morse.local:81/events"></label><button id="connectStream" class="connect-stream" type="button">Connect to ESP32</button><p class="channel-help">Use <b>teng-morse.local</b> on most networks. If it is unavailable, enter the IP printed by the ESP32.</p></section>
+        <section><div class="switch-row"><h3>VOLTAGE THRESHOLD</h3><label class="switch"><input id="thresholdToggle" type="checkbox"><span></span></label></div><label id="thresholdField" class="wide-field is-off">CENTER LEVEL (V)<input id="thresholdInput" type="number" min="0" max="3.300" step="0.001" value="0.200"></label><div id="hysteresisField" class="range-label threshold-detail is-off"><label>HYSTERESIS</label><output id="hysteresisOutput">20 mV</output></div><input id="hysteresisMv" class="threshold-detail is-off" type="range" min="0" max="100" step="1" value="20"></section>
+        <section class="button-row"><button id="clearGraph" class="secondary">Clear graph</button><button id="resetDecoder">Reset decoder</button></section>
+        <p class="safety"><b>Safety:</b> this app displays only the conditioned voltage delivered by the ESP32. Keep GPIO 34 in the 0-3.3 V range.</p>
+      </aside>
+    </section>
+
+    <section class="decoder-section">
+      <div class="decoder-head"><div><p class="eyebrow">MORSE DECODER</p><h2>Live translation and prediction</h2></div><p>Threshold crossings become dots and dashes. Adjust the timing to match your tapping speed.</p></div>
+      <div class="decoder-grid">
+        <article><span>SIGNAL STATE</span><strong id="signalState"><i></i>IDLE</strong><p id="pressPrediction">Enable the threshold to begin decoding.</p></article>
+        <article><span>MORSE BUFFER</span><strong id="morseBuffer" class="symbols">-</strong><p id="bufferHint">No active character</p></article>
+        <article class="decoded"><span>DECODED TEXT</span><strong id="decodedText">...</strong><p id="wordPrediction">Waiting for a character...</p><div class="message-actions"><button id="undoMessage" type="button" aria-label="Remove the last decoded character">Undo</button><button id="clearMessage" type="button" aria-label="Clear decoded message">Clear message</button></div></article>
+      </div>
+      <div class="timing-grid">
+        <label>DOT / DASH SPLIT <output id="dashOutput">300 ms</output><input id="dashMs" type="range" min="80" max="900" step="10" value="300"></label>
+        <label>CHARACTER GAP <output id="characterOutput">800 ms</output><input id="characterGapMs" type="range" min="250" max="1800" step="50" value="800"></label>
+        <label>WORD GAP <output id="wordOutput">2000 ms</output><input id="wordGapMs" type="range" min="800" max="4000" step="100" value="2000"></label>
+      </div>
+      <div class="prediction-card"><div><span>PREDICTED CHARACTERS</span><p id="candidateText">Enable threshold and tap the TENG to see matching Morse candidates.</p></div><div id="candidates" class="candidates" aria-live="polite"></div></div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
