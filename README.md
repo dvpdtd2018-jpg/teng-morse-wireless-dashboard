@@ -10,6 +10,7 @@ The project is portable across routers and phone hotspots. Wi-Fi details are sav
 - Samples at 100 Hz, prints raw voltage to Serial Monitor at 115200 baud, and sends a persistent SSE stream at 50 Hz.
 - Provides Raw, EMA smoothing, median-of-5 spike guard, and mean-of-5 noise-average channels in the browser.
 - Includes adjustable graph axes, threshold hysteresis, interactive Morse prediction, undo, and clear-message controls.
+- Recognizes a double short press as **HUNGRY** and a five-second hold as a doctor-assistance alert.
 - Works with an ESP32 powered from a suitable battery supply once it joins the same Wi-Fi network as the computer.
 
 ## Hardware safety
@@ -101,6 +102,15 @@ Try the signal channels in this order:
 
 The selected channel controls both the chart and Morse trigger. Use **Undo** or **Clear message** to manage decoded text without interrupting the stream.
 
+### Special care gestures
+
+Special gestures work only while the voltage threshold is enabled, and take priority over the active Morse character.
+
+- **HUNGRY:** make two short threshold presses. The second release must occur within one second of the first release. The decoded display is replaced with `HUNGRY`.
+- **DOCTOR:** hold the signal continuously above the threshold for five seconds. The display changes to `CALL DOCTOR` and the dashboard shows a persistent red assistance alert.
+
+Enter the doctor's number in the alert card before it is needed. The dashboard saves it only in that browser. The alert provides a `tel:` call button that you must click to confirm the call; browsers intentionally do not allow an incoming sensor stream to place a telephone call automatically.
+
 ### Change Wi-Fi later
 
 While the ESP32 is on its current network, open `http://teng-morse.local/` or its numeric IP address in a browser, save the new network, and reconnect the computer to that same network.
@@ -186,6 +196,15 @@ Thử các kênh theo thứ tự sau:
 4. **Noise average** để có đường biểu diễn mượt nhất; các lần chạm rất ngắn có thể bị giảm biên độ.
 
 Kênh đang chọn điều khiển cả biểu đồ lẫn ngưỡng Morse. Dùng **Undo** hoặc **Clear message** để chỉnh nội dung đã giải mã mà không ngắt kết nối.
+
+### Thao tác chăm sóc đặc biệt
+
+Các thao tác đặc biệt chỉ hoạt động khi đã bật ngưỡng điện áp và được ưu tiên hơn ký tự Morse đang nhập.
+
+- **HUNGRY:** nhấn ngắn hai lần. Lần nhả thứ hai phải diễn ra trong vòng một giây kể từ lần nhả đầu tiên. Màn hình giải mã sẽ chuyển thành `HUNGRY`.
+- **DOCTOR:** giữ tín hiệu liên tục trên ngưỡng trong năm giây. Màn hình chuyển thành `CALL DOCTOR` và dashboard hiện cảnh báo hỗ trợ màu đỏ.
+
+Nhập số điện thoại bác sĩ vào thẻ cảnh báo trước khi cần dùng. Số này chỉ được lưu trong trình duyệt đó. Nút `tel:` chỉ thực hiện cuộc gọi sau khi bạn bấm xác nhận; trình duyệt chủ động không cho phép tín hiệu cảm biến tự động gọi điện để tránh cuộc gọi ngoài ý muốn.
 
 ### Đổi Wi-Fi/hotspot
 

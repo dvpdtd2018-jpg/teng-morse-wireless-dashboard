@@ -1,6 +1,10 @@
 const $ = (id) => document.getElementById(id);
 const DEFAULT_STREAM_URL = 'http://teng-morse.local:81/events';
 const STREAM_STORAGE_KEY = 'teng-morse-stream-url';
+const DOCTOR_NUMBER_STORAGE_KEY = 'teng-morse-doctor-number';
+const DOUBLE_TAP_WINDOW_MS = 1000;
+const SHORT_TAP_MAX_MS = 450;
+const DOCTOR_HOLD_MS = 5000;
 const morse = {
   ".-":"A","-...":"B","-.-.":"C","-..":"D",".":"E","..-.":"F","--.":"G","....":"H","..":"I",".---":"J","-.-":"K",".-..":"L","--":"M","-.":"N","---":"O",".--.":"P","--.-":"Q",".-.":"R","...":"S","-":"T","..-":"U","...-":"V",".--":"W","-..-":"X","-.--":"Y","--..":"Z","-----":"0",".----":"1","..---":"2","...--":"3","....-":"4",".....":"5","-....":"6","--...":"7","---..":"8","----.":"9"
 };
@@ -11,7 +15,7 @@ const channels = {
   median: { label:'SPIKE GUARD', legend:'MEDIAN-5', help:'Uses the middle value of five samples. Best for rejecting isolated voltage spikes; adds about 40 ms of delay.' },
   average: { label:'NOISE AVERAGE', legend:'MEAN-5', help:'Averages five samples to reduce random noise. Smoothest choice, but it softens short pulses.' }
 };
-const ui = { yMin:$('yMin'), yMax:$('yMax'), xSeconds:$('xSeconds'), xOutput:$('xOutput'), filterChannel:$('filterChannel'), channelOutput:$('channelOutput'), channelHelp:$('channelHelp'), streamUrl:$('streamUrl'), streamStatus:$('streamStatus'), thresholdToggle:$('thresholdToggle'), thresholdInput:$('thresholdInput'), thresholdField:$('thresholdField'), hysteresisMv:$('hysteresisMv'), hysteresisField:$('hysteresisField'), dashMs:$('dashMs'), characterGapMs:$('characterGapMs'), wordGapMs:$('wordGapMs') };
+const ui = { yMin:$('yMin'), yMax:$('yMax'), xSeconds:$('xSeconds'), xOutput:$('xOutput'), filterChannel:$('filterChannel'), channelOutput:$('channelOutput'), channelHelp:$('channelHelp'), streamUrl:$('streamUrl'), streamStatus:$('streamStatus'), thresholdToggle:$('thresholdToggle'), thresholdInput:$('thresholdInput'), thresholdField:$('thresholdField'), hysteresisMv:$('hysteresisMv'), hysteresisField:$('hysteresisField'), dashMs:$('dashMs'), characterGapMs:$('characterGapMs'), wordGapMs:$('wordGapMs'), doctorNumber:$('doctorNumber') };
 const canvas = $('plot');
 const ctx = canvas.getContext('2d');
 const samples = [];
@@ -21,6 +25,7 @@ let decoder = { high:false, lastChange:0, buffer:'', text:'', characterFinished:
 let filterState = { ema:null, window:[] };
 let events = null;
 let streamUrl = localStorage.getItem(STREAM_STORAGE_KEY) || DEFAULT_STREAM_URL;
+let gestures = { lastShortTapAt:0, longHoldTriggered:false, doctorAlertActive:false };
 
 function number(input, fallback) { const value = Number.parseFloat(input.value); return Number.isFinite(value) ? value : fallback; }
 function settings() {
@@ -126,6 +131,72 @@ function finishWord() {
   decoder.wordFinished = true;
   $('decodedText').textContent = decoder.text;
 }
+function clearMorseBuffer(hint = 'Special gesture received') {
+  decoder.buffer = ''; decoder.characterFinished = false; decoder.wordFinished = false;
+  $('morseBuffer').textContent = '—'; $('bufferHint').textContent = hint; candidates();
+}
+function updateDoctorCallLink() {
+  const number = ui.doctorNumber.value.trim();
+  const dialable = number.replace(/[^0-9+*#]/g, '');
+  const link = $('callDoctor');
+  if (!dialable || dialable === '+') {
+    link.removeAttribute('href'); link.classList.add('is-disabled'); link.setAttribute('aria-disabled', 'true'); link.textContent = 'Add a number to call';
+    return;
+  }
+  link.href = `tel:${dialable}`; link.classList.remove('is-disabled'); link.setAttribute('aria-disabled', 'false'); link.textContent = `Call ${number}`;
+}
+function saveDoctorNumber() {
+  localStorage.setItem(DOCTOR_NUMBER_STORAGE_KEY, ui.doctorNumber.value.trim());
+  updateDoctorCallLink();
+}
+function triggerHungry() {
+  gestures.lastShortTapAt = 0;
+  decoder.text = 'HUNGRY';
+  $('decodedText').textContent = decoder.text;
+  clearMorseBuffer('Double press recognized · HUNGRY');
+  updateDecoderStatus();
+}
+function triggerDoctorAlert() {
+  gestures.longHoldTriggered = true; gestures.doctorAlertActive = true;
+  decoder.text = 'CALL DOCTOR';
+  $('decodedText').textContent = decoder.text;
+  clearMorseBuffer('Five-second hold recognized · doctor alert');
+  $('doctorAlert').hidden = false;
+  document.body.classList.add('doctor-alert-active');
+  updateDoctorCallLink();
+}
+function dismissDoctorAlert() {
+  gestures.doctorAlertActive = false;
+  $('doctorAlert').hidden = true;
+  document.body.classList.remove('doctor-alert-active');
+  updateGestureStatus();
+}
+function registerShortTap(heldMs, at) {
+  if (heldMs > SHORT_TAP_MAX_MS) { gestures.lastShortTapAt = 0; return false; }
+  if (gestures.lastShortTapAt && at - gestures.lastShortTapAt <= DOUBLE_TAP_WINDOW_MS) {
+    triggerHungry();
+    return true;
+  }
+  gestures.lastShortTapAt = at;
+  return false;
+}
+function updateGestureStatus() {
+  const s = settings(); const status = $('gestureStatus');
+  if (!s.enabled) { gestures.lastShortTapAt = 0; status.textContent = 'Enable the voltage threshold to use special inputs.'; return; }
+  if (gestures.doctorAlertActive) { status.textContent = 'Doctor assistance alert is active.'; return; }
+  if (decoder.high && decoder.lastChange) {
+    const held = Date.now() - decoder.lastChange;
+    if (held >= DOCTOR_HOLD_MS && !gestures.longHoldTriggered) { triggerDoctorAlert(); status.textContent = 'Doctor assistance alert is active.'; return; }
+    status.textContent = `Hold for doctor alert: ${(held / 1000).toFixed(1)} / 5.0 seconds.`;
+    return;
+  }
+  if (gestures.lastShortTapAt) {
+    const remaining = DOUBLE_TAP_WINDOW_MS - (Date.now() - gestures.lastShortTapAt);
+    if (remaining > 0) { status.textContent = `Tap again within ${(remaining / 1000).toFixed(1)} seconds for HUNGRY.`; return; }
+    gestures.lastShortTapAt = 0;
+  }
+  status.textContent = 'Ready: double short press for HUNGRY · five-second hold for doctor.';
+}
 function triggerHigh(voltage, s) {
   const pressLevel = Math.min(3.3, s.threshold + s.hysteresis / 2);
   const releaseLevel = Math.max(0, s.threshold - s.hysteresis / 2);
@@ -135,14 +206,28 @@ function processMorse(voltage, at) {
   const s = settings();
   if (!s.enabled) return;
   const high = triggerHigh(voltage, s);
+  if (gestures.doctorAlertActive) {
+    if (!high) gestures.longHoldTriggered = false;
+    decoder.high = high; decoder.lastChange = at;
+    return;
+  }
   if (!decoder.lastChange) { decoder.high = high; decoder.lastChange = at; return; }
   const elapsed = at - decoder.lastChange;
   if (high !== decoder.high) {
     if (decoder.high) {
-      decoder.buffer += elapsed < s.dash ? '.' : '-';
-      decoder.characterFinished = false; decoder.wordFinished = false;
-      $('morseBuffer').textContent = decoder.buffer; $('bufferHint').textContent = elapsed < s.dash ? `DOT / ${Math.round(elapsed)} ms` : `DASH / ${Math.round(elapsed)} ms`;
-      candidates();
+      const longHoldRelease = gestures.longHoldTriggered;
+      const hungryDoubleTap = !longHoldRelease && registerShortTap(elapsed, at);
+      if (longHoldRelease) {
+        gestures.longHoldTriggered = false;
+        clearMorseBuffer(gestures.doctorAlertActive ? 'Doctor alert active' : 'Doctor hold released');
+      } else if (hungryDoubleTap) {
+        // triggerHungry() already cleared the active Morse sequence.
+      } else {
+        decoder.buffer += elapsed < s.dash ? '.' : '-';
+        decoder.characterFinished = false; decoder.wordFinished = false;
+        $('morseBuffer').textContent = decoder.buffer; $('bufferHint').textContent = elapsed < s.dash ? `DOT / ${Math.round(elapsed)} ms` : `DASH / ${Math.round(elapsed)} ms`;
+        candidates();
+      }
     } else if (decoder.buffer && !decoder.characterFinished) {
       if (elapsed >= s.wordGap) finishCharacter(true);
       else if (elapsed >= s.characterGap) finishCharacter();
@@ -155,13 +240,14 @@ function processMorse(voltage, at) {
 }
 function updateDecoderStatus() {
   const s = settings(); const state = $('signalState'), prediction = $('pressPrediction');
-  if (!s.enabled) { state.className = ''; state.innerHTML = '<i></i>OFF'; prediction.textContent = 'Enable the threshold to begin decoding.'; $('triggerState').textContent = 'OFF'; $('triggerState').className = 'armed'; return; }
+  if (!s.enabled) { state.className = ''; state.innerHTML = '<i></i>OFF'; prediction.textContent = 'Enable the threshold to begin decoding.'; $('triggerState').textContent = 'OFF'; $('triggerState').className = 'armed'; updateGestureStatus(); return; }
   const high = decoder.high; state.className = high ? 'active' : ''; state.innerHTML = `<i></i>${high ? 'PRESSED' : 'READY'}`;
   if (high && decoder.lastChange) { const held = Date.now() - decoder.lastChange; prediction.textContent = held < s.dash ? `Prediction: dot if released now (${Math.round(held)} ms).` : `Prediction: dash if released now (${Math.round(held)} ms).`; }
   else prediction.textContent = decoder.buffer ? 'Release gap determines when this character is translated.' : 'Waiting for the next threshold crossing.';
   const trigger = $('triggerState'); trigger.textContent = high ? 'TRIGGERED' : 'ARMED'; trigger.className = high ? 'triggered' : 'armed';
   const words = decoder.text.trim().split(/\s+/).filter(Boolean); const last = words.at(-1) || '';
   $('wordPrediction').textContent = last ? `Predictive context: current text ends in “${last}”.` : 'Waiting for a completed character...';
+  updateGestureStatus();
 }
 function processReading(reading) {
   // ESP32 `millis()` is relative to boot; local time keeps chart and Morse
@@ -181,7 +267,12 @@ function resetActiveCharacter() {
   decoder.high = false; decoder.lastChange = 0; decoder.buffer = ''; decoder.characterFinished = false; decoder.wordFinished = false;
   $('morseBuffer').textContent = '-'; $('bufferHint').textContent = 'No active character'; candidates();
 }
-function resetDecoder() { decoder = { high:false, lastChange:0, buffer:'', text:'', characterFinished:false, wordFinished:false }; $('morseBuffer').textContent = '-'; $('decodedText').textContent = '...'; $('bufferHint').textContent = 'No active character'; candidates(); updateDecoderStatus(); }
+function resetDecoder() {
+  decoder = { high:false, lastChange:0, buffer:'', text:'', characterFinished:false, wordFinished:false };
+  gestures = { lastShortTapAt:0, longHoldTriggered:false, doctorAlertActive:false };
+  $('morseBuffer').textContent = '-'; $('decodedText').textContent = '...'; $('bufferHint').textContent = 'No active character';
+  $('doctorAlert').hidden = true; document.body.classList.remove('doctor-alert-active'); candidates(); updateDecoderStatus();
+}
 function clearMessage() { decoder.text = ''; $('decodedText').textContent = '...'; updateDecoderStatus(); }
 function undoMessage() {
   const trimmed = decoder.text.replace(/\s+$/, '');
@@ -190,7 +281,7 @@ function undoMessage() {
   updateDecoderStatus();
 }
 function changeChannel() {
-  resetFilter(); samples.splice(0); resetActiveCharacter();
+  resetFilter(); samples.splice(0); resetActiveCharacter(); gestures.lastShortTapAt = 0; gestures.longHoldTriggered = false;
   $('liveVoltage').innerHTML = '0.0000 <small>V</small>';
   $('millivolts').textContent = '0'; $('rawMillivolts').textContent = '0';
   syncControls(); updateDecoderStatus();
@@ -230,6 +321,7 @@ function saveStreamUrl() {
 }
 [ui.yMin,ui.yMax,ui.xSeconds,ui.thresholdToggle,ui.thresholdInput,ui.hysteresisMv,ui.dashMs,ui.characterGapMs,ui.wordGapMs].forEach((element) => element.addEventListener('input', syncControls));
 ui.filterChannel.addEventListener('change', changeChannel);
-$('clearGraph').addEventListener('click', () => { samples.splice(0); drawGraph(); }); $('resetDecoder').addEventListener('click', resetDecoder); $('clearMessage').addEventListener('click', clearMessage); $('undoMessage').addEventListener('click', undoMessage); $('connectStream').addEventListener('click', saveStreamUrl); ui.streamUrl.addEventListener('keydown', (event) => { if (event.key === 'Enter') saveStreamUrl(); }); window.addEventListener('resize', drawGraph);
+$('clearGraph').addEventListener('click', () => { samples.splice(0); drawGraph(); }); $('resetDecoder').addEventListener('click', resetDecoder); $('clearMessage').addEventListener('click', clearMessage); $('undoMessage').addEventListener('click', undoMessage); $('connectStream').addEventListener('click', saveStreamUrl); $('dismissDoctorAlert').addEventListener('click', dismissDoctorAlert); ui.doctorNumber.addEventListener('input', saveDoctorNumber); ui.streamUrl.addEventListener('keydown', (event) => { if (event.key === 'Enter') saveStreamUrl(); }); window.addEventListener('resize', drawGraph);
 ui.streamUrl.value = streamUrl;
-setInterval(updateDecoderStatus, 50); syncControls(); candidates(); connectEvents();
+ui.doctorNumber.value = localStorage.getItem(DOCTOR_NUMBER_STORAGE_KEY) || '';
+setInterval(updateDecoderStatus, 50); syncControls(); candidates(); updateDoctorCallLink(); updateGestureStatus(); connectEvents();

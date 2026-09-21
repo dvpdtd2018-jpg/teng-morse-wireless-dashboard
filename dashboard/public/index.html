@@ -61,6 +61,15 @@
         <label>WORD GAP <output id="wordOutput">2000 ms</output><input id="wordGapMs" type="range" min="800" max="4000" step="100" value="2000"></label>
       </div>
       <div class="prediction-card"><div><span>PREDICTED CHARACTERS</span><p id="candidateText">Enable threshold and tap the TENG to see matching Morse candidates.</p></div><div id="candidates" class="candidates" aria-live="polite"></div></div>
+      <section class="gesture-card" aria-labelledby="gestureTitle">
+        <div><p class="eyebrow">SPECIAL INPUTS</p><h3 id="gestureTitle">Care gestures</h3><p id="gestureStatus">Enable the voltage threshold to use special inputs.</p></div>
+        <div class="gesture-rule"><b>HUNGRY</b><span>Two short presses within 1 second</span></div>
+        <div class="gesture-rule emergency-rule"><b>DOCTOR</b><span>Continuous hold for 5 seconds</span></div>
+      </section>
+      <section id="doctorAlert" class="doctor-alert" role="alert" hidden>
+        <div><p class="eyebrow">DOCTOR ASSISTANCE REQUEST</p><h3>Five-second hold detected</h3><p>Use the configured contact below to place the call. This confirmation prevents accidental calls from signal noise.</p></div>
+        <div class="doctor-actions"><label>DOCTOR NUMBER (OPTIONAL)<input id="doctorNumber" type="tel" inputmode="tel" placeholder="+84 ..."></label><a id="callDoctor" class="call-doctor is-disabled" aria-disabled="true">Add a number to call</a><button id="dismissDoctorAlert" class="dismiss-alert" type="button">Dismiss alert</button></div>
+      </section>
     </section>
   </main>
   <script src="/app.js"></script>
