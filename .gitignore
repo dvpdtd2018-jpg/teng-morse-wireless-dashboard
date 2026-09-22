@@ -1,4 +1,5 @@
 .DS_Store
 node_modules/
 .pio/
+firmware/esp32_teng_universal_sse_streamer/wifi_secrets.h
 npm-debug.log*

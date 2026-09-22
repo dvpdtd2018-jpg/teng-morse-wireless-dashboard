@@ -25,6 +25,18 @@
 #include <Preferences.h>
 #include <ESPmDNS.h>
 
+#if __has_include("wifi_secrets.h")
+#include "wifi_secrets.h"
+#endif
+
+#ifndef FIXED_WIFI_SSID
+#define FIXED_WIFI_SSID ""
+#endif
+
+#ifndef FIXED_WIFI_PASSWORD
+#define FIXED_WIFI_PASSWORD ""
+#endif
+
 constexpr uint8_t SENSOR_PIN = 34;            // ADC1_CH6
 constexpr uint8_t BOOT_BUTTON_PIN = 0;        // BOOT button on most DevKit V1 boards
 constexpr uint16_t STREAM_PORT = 81;
@@ -119,17 +131,12 @@ bool heldBootDuringStartup() {
   return false;
 }
 
-bool connectSavedNetwork() {
-  preferences.begin("teng-morse", true);
-  const String ssid = preferences.getString("ssid", "");
-  const String password = preferences.getString("password", "");
-  preferences.end();
-  if (ssid.isEmpty()) return false;
-
-  Serial.printf("Connecting to %s", ssid.c_str());
+bool connectNetwork(const char *ssid, const char *password) {
+  if (!ssid || !ssid[0]) return false;
+  Serial.printf("Connecting to %s", ssid);
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
-  WiFi.begin(ssid.c_str(), password.c_str());
+  WiFi.begin(ssid, password);
   const unsigned long startedAt = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - startedAt < WIFI_CONNECT_TIMEOUT_MS) {
     Serial.print('.');
@@ -137,6 +144,18 @@ bool connectSavedNetwork() {
   }
   Serial.println();
   return WiFi.status() == WL_CONNECTED;
+}
+
+bool connectSavedNetwork() {
+  // A private wifi_secrets.h takes priority, so this ESP32 joins the selected
+  // hotspot automatically after every upload or power cycle.
+  if (connectNetwork(FIXED_WIFI_SSID, FIXED_WIFI_PASSWORD)) return true;
+
+  preferences.begin("teng-morse", true);
+  const String ssid = preferences.getString("ssid", "");
+  const String password = preferences.getString("password", "");
+  preferences.end();
+  return connectNetwork(ssid.c_str(), password.c_str());
 }
 
 void startSetupAccessPoint() {

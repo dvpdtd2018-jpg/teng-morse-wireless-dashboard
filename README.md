@@ -46,6 +46,10 @@ platformio.ini                                  PlatformIO configuration
 3. Upload the sketch.
 4. Open Serial Monitor at **115200 baud**.
 
+#### Optional: always join one preferred hotspot
+
+Copy `firmware/esp32_teng_universal_sse_streamer/wifi_secrets.example.h` to `wifi_secrets.h` in the same folder, then add the preferred Wi-Fi name and password. The sketch tries this private network first after every upload or restart. `wifi_secrets.h` is ignored by Git and must never be committed.
+
 ### 3. Connect the ESP32 to any Wi-Fi or hotspot
 
 On its first start, or whenever it cannot connect to its saved network, the ESP32 creates this temporary setup network:
@@ -140,6 +144,10 @@ If the old network is unavailable, reset the ESP32 normally, then hold the **BOO
 2. Chọn board **ESP32 Dev Module** (hoặc ESP32 DevKit V1) và đúng cổng serial.
 3. Upload chương trình.
 4. Mở Serial Monitor với baud rate **115200**.
+
+#### Tùy chọn: luôn kết nối một hotspot ưu tiên
+
+Sao chép `firmware/esp32_teng_universal_sse_streamer/wifi_secrets.example.h` thành `wifi_secrets.h` trong cùng thư mục, sau đó điền tên và mật khẩu Wi-Fi cần ưu tiên. Sau mỗi lần upload hoặc khởi động lại, sketch sẽ thử kết nối mạng riêng này trước. `wifi_secrets.h` đã được Git bỏ qua và không được commit.
 
 ### 3. Kết nối ESP32 với bất kỳ Wi-Fi hoặc hotspot nào
 
